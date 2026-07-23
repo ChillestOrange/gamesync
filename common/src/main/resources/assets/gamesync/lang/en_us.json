@@ -1,0 +1,53 @@
+{
+  "gamesync.config.title": "GameSync",
+
+  "gamesync.config.category.general": "General",
+  "gamesync.config.category.drive": "Google Drive",
+  "gamesync.config.category.advanced": "Advanced",
+
+  "gamesync.config.group.sync_target": "Sync Target",
+  "gamesync.config.group.autosave": "Autosave",
+  "gamesync.config.group.connection": "Connection",
+  "gamesync.config.group.performance": "Performance",
+  "gamesync.config.group.reliability": "Reliability",
+  "gamesync.config.group.debug": "Debug",
+
+  "gamesync.config.option.target_world": "Target World",
+  "gamesync.config.option.target_world.desc": "World name to sync. Must match the save folder name exactly.",
+
+  "gamesync.config.option.cloud_provider": "Cloud Provider",
+  "gamesync.config.option.cloud_provider.desc": "Target cloud provider for sync operations. Currently the only supported value is Google Drive.",
+
+  "gamesync.config.option.autosave_enabled": "Sync on Autosave",
+  "gamesync.config.option.autosave_enabled.desc": "Triggers an additional sync at given intervals, independent of manual or world-unload syncs.",
+
+  "gamesync.config.option.autosave_interval": "Autosave Sync Interval",
+  "gamesync.config.option.autosave_interval.desc": "Minimum interval between autosave-triggered syncs.",
+  "gamesync.config.option.autosave_interval.format": "%s min",
+
+  "gamesync.config.group.connection.desc": "Create an OAuth 'Desktop app' credential in the Google Cloud Console, then enter its details below.",
+
+  "gamesync.config.option.remote_folder_id": "Remote Folder ID",
+  "gamesync.config.option.remote_folder_id.desc": "Destination Google Drive folder ID, taken from the folder's URL: drive.google.com/drive/folders/<FOLDER_ID>",
+
+  "gamesync.config.option.client_id": "OAuth Client ID",
+  "gamesync.config.option.client_id.desc": "OAuth 2.0 Client ID from a Google Cloud 'Desktop app' credential (APIs & Services > Credentials).",
+
+  "gamesync.config.option.client_secret": "OAuth Client Secret",
+  "gamesync.config.option.client_secret.desc": "OAuth 2.0 Client Secret paired with the Client ID above. Per Google's own documentation, desktop-app secrets are not confidential by design, but this file should still not be shared publicly.",
+
+  "gamesync.config.option.thread_threshold": "Thread Threshold",
+  "gamesync.config.option.thread_threshold.desc": "File count threshold above which sync execution switches from sequential to multithreaded.",
+
+  "gamesync.config.option.max_workers": "Max Workers",
+  "gamesync.config.option.max_workers.desc": "Maximum number of concurrent file transfers in multithreaded mode.",
+
+  "gamesync.config.option.max_retries": "Max Retries",
+  "gamesync.config.option.max_retries.desc": "Maximum retry attempts per file before the transfer is marked as failed.",
+
+  "gamesync.config.option.retry_delay": "Retry Delay",
+  "gamesync.config.option.retry_delay.desc": "Delay between retry attempts, in milliseconds.",
+
+  "gamesync.config.option.debug_mode": "Debug Mode",
+  "gamesync.config.option.debug_mode.desc": "Enables verbose debug logging for diagnostics."
+}
