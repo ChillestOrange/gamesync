@@ -9,8 +9,13 @@ import io.github.chillestorange.platform.PlatformServices;
 import io.github.chillestorange.service.cloud.CloudStorageFactory.Credentials;
 import io.github.chillestorange.service.cloud.CloudStorageFactory.ProviderType;
 import net.minecraft.resources.Identifier;
+import org.jspecify.annotations.NonNull;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class GameSyncConfig {
 
@@ -21,55 +26,64 @@ public final class GameSyncConfig {
                             "config"
                     ))
                     .serializer(config -> GsonConfigSerializerBuilder.create(config)
-                            .setPath(
-                                    PlatformServices.PLATFORM
-                                            .getConfigDirectory()
-                                            .resolve(GameSyncConstants.MOD_ID + ".json5")
-                            )
+                            .setPath(configFilePath())
                             .appendGsonBuilder(GsonBuilder::setPrettyPrinting)
                             .setJson5(true)
                             .build())
                     .build();
 
-    @SerialEntry(comment = "Name of the world to be synced.")
+    @SerialEntry(comment = "World name to sync. Must match the save folder name exactly.")
     public String targetWorld = "";
 
-    @SerialEntry(comment = "[ Experimental ] Whether syncing should also run after each autosave.")
+    @SerialEntry(comment = "Triggers an additional sync at given intervals.")
     public boolean autosaveSyncEnabled = false;
 
-    @SerialEntry(comment = "[ Experimental ] Interval in ticks between autosave-triggered syncs. Default 6000 = 5 minutes.")
+    @SerialEntry(comment = "Minimum interval between autosave-triggered syncs, in ticks." +
+            "20 ticks = 1 second, so the default of 6000 equals 5 minutes.")
     public int autosaveIntervalTicks = 6000;
 
-    @SerialEntry(comment = "Cloud provider to use for syncing. Currently only GOOGLE_DRIVE is supported.")
+    @SerialEntry(comment = "Target cloud provider for sync operations. Currently the only supported value is GOOGLE_DRIVE.")
     public String cloudProvider = "GOOGLE_DRIVE";
 
-    @SerialEntry(comment = "Google Drive folder ID to sync the world with. " +
-            "Find it in your Drive URL: drive.google.com/drive/folders/<THIS_PART>")
+    @SerialEntry(comment = "Destination Google Drive folder ID, taken from the folder's URL: " +
+            "drive.google.com/drive/folders/<FOLDER_ID>")
     public String remoteFolderId = "";
 
-    @SerialEntry(comment = "OAuth Client ID from your Google Cloud 'Desktop app' credential " +
-            "(APIs & Services > Credentials). Required for Drive access.")
+    @SerialEntry(comment = "OAuth 2.0 Client ID from a 'Desktop app' credential, generated in Google Cloud " +
+            "Console under APIs & Services > Credentials. Required for Drive authentication.")
     public String clientId = "";
 
-    @SerialEntry(comment = "OAuth Client Secret from the same Google Cloud credential. " +
-            "For an installed-app OAuth flow this is not a true secret (Google's own docs " +
-            "acknowledge this), but avoid sharing your config file publicly.")
+    @SerialEntry(comment = "OAuth 2.0 Client Secret paired with the Client ID above. Per Google's own " +
+            "documentation, desktop-app client secrets are not confidential by design, but this " +
+            "file should still not be shared or committed to version control.")
     public String clientSecret = "";
 
-    @SerialEntry(comment = "[ Advanced ] Number of files after which threaded execution is used.")
+    @SerialEntry(comment = "[ Advanced ] File count threshold above which sync execution switches from " +
+            "sequential to multithreaded.")
     public int threadThreshold = 5;
 
-    @SerialEntry(comment = "[ Advanced ] Number of simultaneous file transfers during threaded execution.")
+    @SerialEntry(comment = "[ Advanced ] Maximum number of concurrent file transfers in multithreaded mode.")
     public int maxWorkers = 12;
 
-    @SerialEntry(comment = "[ Advanced ] Number of attempts per file before giving up.")
+    @SerialEntry(comment = "[ Advanced ] Maximum retry attempts per file before the transfer is marked as failed.")
     public int maxRetries = 3;
 
-    @SerialEntry(comment = "[ Advanced ] Delay between each retry (in ms).")
+    @SerialEntry(comment = "[ Advanced ] Delay between retry attempts, in milliseconds.")
     public long retryDelay = 1500;
 
-    @SerialEntry(comment = "[ Advanced ] Enable debug mode.")
+    @SerialEntry(comment = "[ Advanced ] Enables verbose debug logging for diagnostics.")
     public boolean debugMode = false;
+
+    public static boolean load() {
+        boolean result = HANDLER.load();
+        writeSpacedConfig();
+        return result;
+    }
+
+    public static void save() {
+        HANDLER.save();
+        writeSpacedConfig();
+    }
 
     // Accessors.
     public static String targetWorld() {
@@ -82,6 +96,26 @@ public final class GameSyncConfig {
 
     public static int autosaveIntervalTicks() {
         return HANDLER.instance().autosaveIntervalTicks;
+    }
+
+    public static int threadThreshold() {
+        return HANDLER.instance().threadThreshold;
+    }
+
+    public static int maxWorkers() {
+        return HANDLER.instance().maxWorkers;
+    }
+
+    public static int maxRetries() {
+        return HANDLER.instance().maxRetries;
+    }
+
+    public static long retryDelay() {
+        return HANDLER.instance().retryDelay;
+    }
+
+    public static boolean debugMode() {
+        return HANDLER.instance().debugMode;
     }
 
     /**
@@ -127,23 +161,40 @@ public final class GameSyncConfig {
         return PlatformServices.PLATFORM.getConfigDirectory().resolve(GameSyncConstants.MOD_ID);
     }
 
-    public static int threadThreshold() {
-        return HANDLER.instance().threadThreshold;
+    private static void writeSpacedConfig() {
+        Path file = configFilePath();
+        if (!Files.isRegularFile(file)) {
+            return;
+        }
+
+        try {
+            List<String> original = Files.readAllLines(file);
+            List<String> spaced = getSpacedConfig(original);
+
+            Files.writeString(file, String.join("\n", spaced) + "\n");
+        } catch (IOException ignored) {
+            // Formatting is cosmetic only, so a failure here is safe to ignore.
+        }
     }
 
-    public static int maxWorkers() {
-        return HANDLER.instance().maxWorkers;
+    private static @NonNull List<String> getSpacedConfig(List<String> original) {
+        List<String> spaced = new ArrayList<>(original.size() + 16);
+
+        for (String line : original) {
+            boolean isCommentLine = line.startsWith("\t// ");
+            boolean previousWasComment = !spaced.isEmpty() && spaced.getLast().startsWith("\t// ");
+            boolean previousWasOpeningBrace = !spaced.isEmpty() && spaced.getLast().equals("{");
+            boolean previousWasBlank = !spaced.isEmpty() && spaced.getLast().isEmpty();
+
+            if (isCommentLine && !previousWasComment && !previousWasOpeningBrace && !previousWasBlank) {
+                spaced.add("");
+            }
+            spaced.add(line);
+        }
+        return spaced;
     }
 
-    public static int maxRetries() {
-        return HANDLER.instance().maxRetries;
-    }
-
-    public static long retryDelay() {
-        return HANDLER.instance().retryDelay;
-    }
-
-    public static boolean debugMode() {
-        return HANDLER.instance().debugMode;
+    private static Path configFilePath() {
+        return PlatformServices.PLATFORM.getConfigDirectory().resolve(GameSyncConstants.MOD_ID + ".json5");
     }
 }

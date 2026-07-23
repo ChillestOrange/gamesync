@@ -11,7 +11,7 @@ public final class GameSyncClientFabric implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        GameSyncConfig.HANDLER.load();
+        GameSyncConfig.load();
         GameSyncLogger.setDebugEnabled(GameSyncConfig.debugMode());
         FabricSyncHud.register();
         AutosaveSyncListener.register();

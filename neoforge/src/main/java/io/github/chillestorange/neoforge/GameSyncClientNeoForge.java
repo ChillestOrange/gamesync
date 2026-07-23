@@ -31,7 +31,7 @@ public class GameSyncClientNeoForge {
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
-        GameSyncConfig.HANDLER.load();
+        GameSyncConfig.load();
         GameSyncLogger.setDebugEnabled(GameSyncConfig.debugMode());
         AutosaveSyncListener.register();
         GameSyncService.initialize(

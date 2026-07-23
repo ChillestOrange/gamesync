@@ -26,7 +26,7 @@ public final class AutosaveSyncListener {
         }
 
         if (server.getTickCount() % CONFIG_RELOAD_INTERVAL_TICKS == 0) {
-            GameSyncConfig.HANDLER.load();
+            GameSyncConfig.load();
         }
 
         GameSyncConfig config = GameSyncConfig.HANDLER.instance();
