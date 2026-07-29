@@ -6,12 +6,9 @@ import io.github.chillestorange.service.cloud.CloudStorageFactory;
 import io.github.chillestorange.service.cloud.CloudStorageFactory.Credentials;
 import io.github.chillestorange.service.cloud.CloudStorageFactory.ProviderType;
 import io.github.chillestorange.service.cloud.CloudStorageProvider;
-import io.github.chillestorange.service.sync.FileTransferManager;
-import io.github.chillestorange.service.sync.HashCache;
-import io.github.chillestorange.service.sync.LevelSync;
-import io.github.chillestorange.service.sync.SyncDiffEngine;
-import io.github.chillestorange.service.sync.SyncDirection;
+import io.github.chillestorange.service.sync.*;
 import io.github.chillestorange.service.sync.SyncDiffEngine.FolderTask;
+import io.github.chillestorange.util.FormatUtils;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
@@ -177,8 +174,9 @@ public final class GameSyncService {
         SyncDiffEngine.Result diff = diffEngine.buildChangeset(
                 worldPath, remoteFolderId, tree, hashCache, direction);
 
-        GameSyncLogger.info("{} uploads, {} downloads, {} folder(s) to create",
-                diff.toUpload().size(), diff.toDownload().size(), diff.folderTasks().size());
+        GameSyncLogger.info("{} uploads, {} downloads, {} folder(s) to create. Total size: {}",
+                diff.toUpload().size(), diff.toDownload().size(),
+                diff.folderTasks().size(), FormatUtils.formatBytes(diff.totalBytes()));
 
         // Folder creation happens synchronously here, before the transfer pool
         // starts — two threads racing to create the same folder on either side

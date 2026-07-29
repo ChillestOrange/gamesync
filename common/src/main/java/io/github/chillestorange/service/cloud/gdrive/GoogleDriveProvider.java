@@ -67,12 +67,14 @@ public final class GoogleDriveProvider implements CloudStorageProvider {
         }
         Instant modified = obj.has("modifiedTime") ? Instant.parse(obj.get("modifiedTime").getAsString()) : Instant.EPOCH;
         boolean isFolder = obj.has("mimeType") && FOLDER_MIME.equals(obj.get("mimeType").getAsString());
+        long size = obj.has("size") ? Long.parseLong(obj.get("size").getAsString()) : 0L;
         return new CloudItem(
                 obj.get("id").getAsString(),
                 obj.get("name").getAsString(),
                 isFolder,
                 modified,
                 obj.has("md5Checksum") ? obj.get("md5Checksum").getAsString() : "",
+                size,
                 parents
         );
     }
@@ -88,7 +90,7 @@ public final class GoogleDriveProvider implements CloudStorageProvider {
     @Override
     public List<CloudItem> listChildren(String folderId) throws IOException, InterruptedException {
         String query = "'" + folderId + "' in parents and trashed=false";
-        String fields = "nextPageToken,files(id,name,mimeType,modifiedTime,md5Checksum,parents)";
+        String fields = "nextPageToken,files(id,name,mimeType,modifiedTime,md5Checksum,size,parents)";
         List<CloudItem> result = new ArrayList<>();
         String pageToken = null;
 
@@ -120,7 +122,7 @@ public final class GoogleDriveProvider implements CloudStorageProvider {
     @Override
     public Optional<CloudItem> findByNameInFolder(String filename, String folderId) throws IOException, InterruptedException {
         String query = "name='" + escapeQueryValue(filename) + "' and '" + folderId + "' in parents and trashed=false";
-        String fields = "files(id,name,mimeType,modifiedTime,md5Checksum,parents)";
+        String fields = "files(id,name,mimeType,modifiedTime,md5Checksum,size,parents)";
         String url = FILES_ENDPOINT + "?q=" + enc(query) + "&fields=" + enc(fields)
                 + "&supportsAllDrives=true&includeItemsFromAllDrives=true";
 

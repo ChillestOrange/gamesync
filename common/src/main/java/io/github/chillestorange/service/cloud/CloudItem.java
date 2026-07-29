@@ -21,5 +21,6 @@ public record CloudItem(
         boolean isFolder,
         Instant modifiedTime,
         String contentFingerprint,
+        long size,
         List<String> parents
 ) {}

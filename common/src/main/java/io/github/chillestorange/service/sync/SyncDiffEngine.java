@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Replaces diff_engine.py. Walks the local world folder and the in-memory
@@ -41,17 +42,19 @@ public final class SyncDiffEngine {
         List<TransferTask> toUpload = new ArrayList<>();
         List<TransferTask> toDownload = new ArrayList<>();
         List<FolderTask> folderTasks = new ArrayList<>();
+        AtomicLong totalBytes = new AtomicLong();
 
         walk(localRoot, localRoot, rootFolderId, remoteTree, hashCache, direction,
-                toUpload, toDownload, folderTasks);
+                toUpload, toDownload, folderTasks, totalBytes);
 
-        return new Result(toUpload, toDownload, folderTasks);
+        return new Result(toUpload, toDownload, folderTasks, totalBytes.get());
     }
 
     private void walk(
             Path localRoot, Path localPath, String folderId,
             Map<String, List<CloudItem>> remoteTree, HashCache hashCache, SyncDirection direction,
-            List<TransferTask> toUpload, List<TransferTask> toDownload, List<FolderTask> folderTasks
+            List<TransferTask> toUpload, List<TransferTask> toDownload, List<FolderTask> folderTasks,
+            AtomicLong totalBytes
     ) throws IOException {
 
         List<CloudItem> children = remoteTree.getOrDefault(folderId, List.of());
@@ -95,7 +98,7 @@ public final class SyncDiffEngine {
                 // still need walking once the matching folder exists.
                 if (remoteId != null) {
                     walk(localRoot, localFile, remoteId, remoteTree, hashCache, direction,
-                            toUpload, toDownload, folderTasks);
+                            toUpload, toDownload, folderTasks, totalBytes);
                 }
                 continue;
             }
@@ -106,6 +109,13 @@ public final class SyncDiffEngine {
                     GameSyncLogger.debug("Skipping mid-write file: {} (age {}ms)", localFile, ageMillis);
                     continue; // mid-write guard
                 }
+            }
+
+            // total size of everything scanned, local size wins when both exist
+            if (existsLocally) {
+                totalBytes.addAndGet(Files.size(localFile));
+            } else if (existsOnServer) {
+                totalBytes.addAndGet(serverItem.size());
             }
 
             String relKey = localRoot.relativize(localFile).toString();
@@ -228,7 +238,8 @@ public final class SyncDiffEngine {
     public record Result(
             List<TransferTask> toUpload,
             List<TransferTask> toDownload,
-            List<FolderTask> folderTasks
+            List<FolderTask> folderTasks,
+            long totalBytes
     ) {
     }
 }
