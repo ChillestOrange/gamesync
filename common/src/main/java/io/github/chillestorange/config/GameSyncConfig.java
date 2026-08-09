@@ -32,8 +32,9 @@ public final class GameSyncConfig {
                             .build())
                     .build();
 
-    @SerialEntry(comment = "World name to sync. Must match the save folder name exactly.")
-    public String targetWorld = "";
+    @SerialEntry(comment = "World names to sync. Must match each save folder name exactly. " +
+            "Add one entry per world you want GameSync to manage.")
+    public List<String> targetWorlds = new ArrayList<>();
 
     @SerialEntry(comment = "Triggers an additional sync at given intervals.")
     public boolean autosaveSyncEnabled = false;
@@ -45,8 +46,9 @@ public final class GameSyncConfig {
     @SerialEntry(comment = "Target cloud provider for sync operations. Currently the only supported value is GOOGLE_DRIVE.")
     public String cloudProvider = "GOOGLE_DRIVE";
 
-    @SerialEntry(comment = "Destination Google Drive folder ID, taken from the folder's URL: " +
-            "drive.google.com/drive/folders/<FOLDER_ID>")
+    @SerialEntry(comment = "Root Google Drive folder ID, taken from the folder's URL: " +
+            "drive.google.com/drive/folders/<FOLDER_ID>. Each synced world gets its own " +
+            "subfolder created automatically under this one.")
     public String remoteFolderId = "";
 
     @SerialEntry(comment = "OAuth 2.0 Client ID from a 'Desktop app' credential, generated in Google Cloud " +
@@ -86,8 +88,18 @@ public final class GameSyncConfig {
     }
 
     // Accessors.
-    public static String targetWorld() {
-        return HANDLER.instance().targetWorld;
+    public static List<String> targetWorlds() {
+        return HANDLER.instance().targetWorlds;
+    }
+
+    /**
+     * Whether the given save-folder name is one of the worlds configured for
+     * syncing. Centralized here rather than having each mixin call
+     * targetWorlds().contains(...) directly, so the membership check has one
+     * place to live if it ever needs to become case-insensitive, trimmed, etc.
+     */
+    public static boolean isTargetWorld(String levelId) {
+        return HANDLER.instance().targetWorlds.contains(levelId);
     }
 
     public static boolean autosaveSyncEnabled() {

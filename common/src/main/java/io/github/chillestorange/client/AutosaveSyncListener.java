@@ -41,7 +41,7 @@ public final class AutosaveSyncListener {
         }
 
         String worldName = server.getWorldData().getLevelName();
-        if (!config.targetWorld.equals(worldName)) {
+        if (!GameSyncConfig.isTargetWorld(worldName)) {
             return;
         }
 
@@ -51,6 +51,6 @@ public final class AutosaveSyncListener {
 
         GameSyncLogger.info("Detected autosave tick for target world, starting sync: world=", worldName);
 
-        GameSyncService.runSyncCycle(worldPath);
+        GameSyncService.runSyncCycle(worldPath, worldName);
     }
 }

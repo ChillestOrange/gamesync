@@ -36,7 +36,7 @@ public class WorldSaveMixin {
         }
 
         String levelId = storageSource.getLevelId();
-        if (!GameSyncConfig.targetWorld().equals(levelId)) {
+        if (!GameSyncConfig.isTargetWorld(levelId)) {
             return;
         }
 
@@ -49,6 +49,7 @@ public class WorldSaveMixin {
 
         GameSyncService.runSyncCycle(
                 worldPath,
+                levelId,
                 () -> {
                     GameSyncLogger.info("Upload sync complete for world {}", levelId);
                     gamesync$returnToTitleIfStillSyncing(minecraft);

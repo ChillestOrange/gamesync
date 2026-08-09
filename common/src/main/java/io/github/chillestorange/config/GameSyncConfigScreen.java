@@ -10,6 +10,8 @@ import io.github.chillestorange.service.cloud.CloudStorageFactory.ProviderType;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
+import java.util.ArrayList;
+
 public class GameSyncConfigScreen {
 
     private GameSyncConfigScreen() {
@@ -20,12 +22,17 @@ public class GameSyncConfigScreen {
 
         // --- General: what to sync, and when ---
 
-        Option<String> targetWorldOption = Option.<String>createBuilder()
-                .name(Component.translatable("gamesync.config.option.target_world"))
+        ListOption<String> targetWorldsOption = ListOption.<String>createBuilder()
+                .name(Component.translatable("gamesync.config.option.target_worlds"))
                 .description(OptionDescription.of(Component.translatable(
-                        "gamesync.config.option.target_world.desc")))
-                .binding("", () -> instance.targetWorld, v -> instance.targetWorld = v)
+                        "gamesync.config.option.target_worlds.desc")))
+                .binding(
+                        new ArrayList<>(),
+                        () -> instance.targetWorlds,
+                        v -> instance.targetWorlds = v
+                )
                 .controller(StringControllerBuilder::create)
+                .initial("")
                 .build();
 
         Option<ProviderType> cloudProviderOption = Option.<ProviderType>createBuilder()
@@ -46,9 +53,12 @@ public class GameSyncConfigScreen {
                 .controller(opt -> EnumControllerBuilder.create(opt).enumClass(ProviderType.class))
                 .build();
 
+        // ListOption renders as its own collapsible group in the UI (it's a
+        // hybrid of a group and a regular option), so it attaches to the
+        // category via .group() below — nesting it inside an OptionGroup with
+        // .option() throws UnsupportedOperationException at runtime.
         OptionGroup syncTargetGroup = OptionGroup.createBuilder()
                 .name(Component.translatable("gamesync.config.group.sync_target"))
-                .option(targetWorldOption)
                 .option(cloudProviderOption)
                 .build();
 
@@ -80,6 +90,7 @@ public class GameSyncConfigScreen {
 
         ConfigCategory generalCategory = ConfigCategory.createBuilder()
                 .name(Component.translatable("gamesync.config.category.general"))
+                .group(targetWorldsOption)
                 .group(syncTargetGroup)
                 .group(autosaveGroup)
                 .build();

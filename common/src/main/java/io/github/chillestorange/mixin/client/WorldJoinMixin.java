@@ -8,7 +8,6 @@ import io.github.chillestorange.util.WorldDataHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.worldselection.WorldSelectionList;
-import net.minecraft.client.gui.screens.worldselection.WorldSelectionList.WorldListEntry;
 import net.minecraft.world.level.storage.LevelSummary;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,7 +21,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.UUID;
 
-@Mixin(WorldListEntry.class)
+@Mixin(WorldSelectionList.WorldListEntry.class)
 public class WorldJoinMixin {
 
     @Unique
@@ -44,7 +43,7 @@ public class WorldJoinMixin {
     private void gamesync$joinWorld(CallbackInfo ci) {
 
         String levelId = summary.getLevelId();
-        if (!GameSyncConfig.targetWorld().equals(levelId)) {
+        if (!GameSyncConfig.isTargetWorld(levelId)) {
             return;
         }
 
@@ -60,6 +59,7 @@ public class WorldJoinMixin {
 
         GameSyncService.runSyncCycle(
                 worldPath,
+                levelId,
                 () -> gamesync$onSyncComplete(levelId, worldPath),
                 error -> gamesync$onSyncFailed(previousScreen, levelId, error)
         );
