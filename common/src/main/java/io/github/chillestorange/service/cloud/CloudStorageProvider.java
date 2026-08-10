@@ -1,6 +1,7 @@
 package io.github.chillestorange.service.cloud;
 
 import io.github.chillestorange.config.GameSyncConfig;
+import io.github.chillestorange.logging.GameSyncLogger;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -27,15 +28,12 @@ import java.util.concurrent.Executors;
 public interface CloudStorageProvider {
 
     /**
-     * One BFS pass over the whole tree under rootFolderId. Implemented here as
-     * a default method built from listChildren, rather than as an abstract
-     * method every provider has to satisfy — the traversal itself (queue,
-     * visited set, recurse into anything isFolder()) has nothing
-     * provider-specific in it, so a future Dropbox/OneDrive implementation
-     * only needs listChildren and gets tree-fetching for free instead of
-     * copy-pasting the same BFS GoogleDriveProvider used to carry.
-     * * Note: This implementation is now multi-threaded to execute network
-     * calls concurrently, drastically reducing total fetch time.
+     * One BFS pass over the whole tree under rootFolderId, run concurrently
+     * across a worker pool. Implemented here as a default method built from
+     * listChildren, rather than as an abstract method every provider has to
+     * satisfy — the traversal itself has nothing provider-specific in it, so
+     * a future Dropbox/OneDrive implementation only needs listChildren and
+     * gets tree-fetching for free.
      */
     default Map<String, List<CloudItem>> fetchTree(String rootFolderId) throws IOException, InterruptedException {
         Map<String, List<CloudItem>> tree = new ConcurrentHashMap<>();
@@ -80,6 +78,7 @@ public interface CloudStorageProvider {
             }
         }, executor).thenCompose(children -> {
             tree.put(folderId, children);
+            GameSyncLogger.debug("Fetched folder {} ({} children)", folderId, children.size());
 
             List<CompletableFuture<Void>> childTasks = new ArrayList<>();
             for (CloudItem item : children) {

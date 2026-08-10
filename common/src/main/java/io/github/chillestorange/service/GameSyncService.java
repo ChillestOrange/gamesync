@@ -25,25 +25,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
- * This is the call site that replaces:
+ * Entry point for the sync system: call {@link #initialize} once at mod
+ * startup, then {@link #runSyncCycle} on every trigger after that — wire it
+ * into AutosaveSyncListener / WorldSaveMixin / WorldJoinMixin.
  * <p>
- * new ProcessBuilder(file_accesser.exe path...).start();
- * <p>
- * with:
- * <p>
- * GameSyncService.initialize(...);                      // once, at mod startup
- * GameSyncService.runSyncCycle(worldPath, worldName);    // every trigger after that
- * <p>
- * wired into your AutosaveSyncListener / WorldSaveMixin / WorldJoinMixin
- * wherever the process used to get launched.
+ * <b>Logging:</b> INFO here means "a cycle actually moved data." No-ops and
+ * overlap-skips are DEBUG; per-item mechanics live in the lower-level classes.
  */
 public final class GameSyncService {
 
-    // Replaces lock.py's PID-file lock entirely. That existed because
-    // file_accesser.exe could be launched as a brand-new OS process every
-    // cycle; here everything runs in one JVM, so a flag is enough to stop two
-    // sync cycles overlapping (e.g. an autosave-triggered sync racing a
-    // world-join-triggered one).
+    // A flag is enough to stop two sync cycles overlapping (e.g. an
+    // autosave-triggered sync racing a world-join-triggered one) since
+    // everything runs in one JVM.
     private static final AtomicBoolean SYNC_RUNNING = new AtomicBoolean(false);
     private static final ExecutorService SYNC_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "gamesync-cycle");
@@ -63,9 +56,7 @@ public final class GameSyncService {
     private static volatile HashCache hashCache;
     // The app's shared root folder on the cloud side. Each synced world gets
     // its own subfolder created/found underneath this one — see
-    // resolveWorldFolderId. This used to be passed straight into
-    // SyncDiffEngine as the sync target itself, back when the mod only ever
-    // synced a single world directly inside it.
+    // resolveWorldFolderId.
     private static volatile String appRootFolderId;
     private static volatile Path configDir;
 
@@ -78,11 +69,10 @@ public final class GameSyncService {
 
     /**
      * Call once at mod startup (e.g. from GameSyncClient's initializer), not
-     * on every sync cycle. Building the provider, authenticator, and hash
-     * cache fresh every cycle was forced when this was a freshly-launched
-     * process each time; now that it's one long-lived JVM, doing that every
-     * cycle would just mean re-reading token/hash-cache JSON off disk and
-     * spinning up duplicate HttpClient instances for no reason.
+     * on every sync cycle — the provider, authenticator, and hash cache stay
+     * live for the JVM's lifetime, so rebuilding them per cycle would just
+     * mean re-reading token/hash-cache JSON off disk and spinning up
+     * duplicate HttpClient instances for no reason.
      */
     public static void initialize(
             ProviderType providerType, Credentials credentials, String appRootFolderId, Path configDir
@@ -112,7 +102,9 @@ public final class GameSyncService {
             throw new IllegalStateException("GameSyncService.initialize(...) must be called before runSyncCycle(...)");
         }
         if (!SYNC_RUNNING.compareAndSet(false, true)) {
-            GameSyncLogger.info("Sync already running, skipping this trigger");
+            // Routine when an autosave-triggered sync overlaps a world-join-triggered
+            // one; not worth surfacing at INFO on every occurrence.
+            GameSyncLogger.debug("Sync already running, skipping this trigger");
             return CompletableFuture.completedFuture(null);
         }
 
@@ -138,17 +130,11 @@ public final class GameSyncService {
 
         // Check for level.dat specifically, not just the directory. On a world-join
         // trigger, Minecraft creates the world directory before writing level.dat,
-        // so Files.exists(worldPath) can return true while level.dat doesn't exist
-        // yet — which caused a NoSuchFileException when the old check just tested
-        // the directory.
+        // so Files.exists(worldPath) can return true while level.dat doesn't exist yet.
         boolean firstRun = !Files.exists(worldPath.resolve(LEVEL_DAT));
         SyncDirection direction;
 
         if (firstRun) {
-            // The original had a real bug here: it called orchestrator.sync(direction="-1")
-            // with a comment saying "force download everything", but "-1" is the no-op
-            // direction in that codebase, so sync() returned immediately and first-time
-            // download never actually happened. Fixed here by setting DOWNLOAD directly.
             GameSyncLogger.info("World not found locally, downloading from cloud storage");
             Files.createDirectories(worldPath);
             direction = SyncDirection.DOWNLOAD;
@@ -177,7 +163,10 @@ public final class GameSyncService {
         }
 
         if (direction == SyncDirection.NO_OP) {
-            GameSyncLogger.info("Worlds already in sync, nothing to do");
+            // Fires on every autosave cycle where nothing changed — the common
+            // case in normal play — so this stays at DEBUG rather than INFO to
+            // avoid drowning the log in no-op announcements.
+            GameSyncLogger.debug("Worlds already in sync, nothing to do");
             return;
         }
 

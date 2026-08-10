@@ -13,11 +13,11 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Replaces diff_engine.py. Walks the local world folder and the in-memory
- * remote tree together, building flat upload/download/folder-creation task
- * lists. No network calls happen here — every remote lookup is a map access
- * into the tree fetched up front by CloudStorageProvider.fetchTree. Depends
- * only on the provider-agnostic CloudItem, never on anything Drive-specific.
+ * Walks the local world folder and the in-memory remote tree together,
+ * building flat upload/download/folder-creation task lists. No network calls
+ * happen here — every remote lookup is a map access into the tree fetched up
+ * front by CloudStorageProvider.fetchTree. Depends only on the
+ * provider-agnostic CloudItem, never on anything Drive-specific.
  * <p>
  * FolderTask and TransferTask are nested here rather than in a separate
  * SyncTasks file — they exist purely to be the contents of Result, so
@@ -26,10 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class SyncDiffEngine {
 
     private static final Set<String> IGNORED_FILES = Set.of("session.lock");
-    // Skip files modified within this window — guards against racing a write
-    // that's still in flight. Since sync is now triggered from WorldSaveMixin
-    // *after* the save completes (rather than blind 4-5 minute polling), this
-    // should rarely fire in practice, but it's kept as a defensive fallback.
+    // Defensive fallback in case a file is still mid-write when scanned.
     private static final long SKIP_IF_MODIFIED_WITHIN_MILLIS = 3000;
 
     public Result buildChangeset(
@@ -121,9 +118,9 @@ public final class SyncDiffEngine {
             String relKey = localRoot.relativize(localFile).toString();
 
             if (existsLocally && existsOnServer) {
-                // Truncate to whole seconds before comparing, mirroring the original's
-                // .replace(microsecond=0) — avoids spurious "changed" results from
-                // sub-second precision mismatches between local mtime and the remote timestamp.
+                // Truncate to whole seconds before comparing — avoids spurious "changed"
+                // results from sub-second precision mismatches between local mtime and
+                // the remote timestamp.
                 Instant remoteModified = serverItem.modifiedTime().truncatedTo(ChronoUnit.SECONDS);
                 Instant localModified = Files.getLastModifiedTime(localFile).toInstant().truncatedTo(ChronoUnit.SECONDS);
 
@@ -132,6 +129,8 @@ public final class SyncDiffEngine {
                         GameSyncLogger.debug("Queueing upload: {} (local={} remote={})", relKey, localModified, remoteModified);
                         toUpload.add(new TransferTask(localFile, serverItem.id(), folderId, name, null));
                     } else {
+                        // Kept at plain DEBUG, not verbose: explains why a file whose
+                        // mtime changed still didn't get re-uploaded.
                         GameSyncLogger.debug("Fingerprint match, skipping upload: {}", localFile);
                     }
                 } else if (direction == SyncDirection.DOWNLOAD && remoteModified.isAfter(localModified)) {
@@ -141,12 +140,12 @@ public final class SyncDiffEngine {
 
             } else if (existsLocally) {
                 if (direction == SyncDirection.UPLOAD) {
-                    GameSyncLogger.debug("Queueing upload for local-only file: {} ", relKey);
+                    GameSyncLogger.debug("Queueing upload for local-only file: {}", relKey);
                     toUpload.add(new TransferTask(localFile, null, folderId, name, null));
                 }
             } else { // existsOnServer only
                 if (direction == SyncDirection.DOWNLOAD) {
-                    GameSyncLogger.debug("Queueing upload for remote-only file: {} ", relKey);
+                    GameSyncLogger.debug("Queueing download for remote-only file: {}", relKey);
                     toDownload.add(new TransferTask(localFile, serverItem.id(), folderId, name, serverItem.modifiedTime()));
                 }
             }
@@ -154,18 +153,12 @@ public final class SyncDiffEngine {
     }
 
     /**
-     * Called by GameSyncService right after it creates a brand-new remote
-     * folder. walk() above can't see inside that folder yet — its recursion is
-     * gated on a remote id existing, which is exactly what didn't exist when
-     * this folder's CreateRemote task was queued. Without this follow-up,
-     * files inside a newly-created folder (e.g. the first DIM1/region/ after a
-     * player visits the End) would sit unsynced until the next cycle, once the
-     * folder shows up in a fresh tree fetch.
-     * <p>
-     * No remote comparison is needed here — nothing can exist remotely under a
-     * folder that didn't exist a moment ago — so this just enumerates the
-     * local contents directly, creating any nested new subfolders as it goes
-     * since their own children need their own freshly assigned ids the same way.
+     * Called right after GameSyncService creates a brand-new remote folder —
+     * walk() couldn't see inside it yet since its recursion is gated on a
+     * remote id that didn't exist at diff time. Without this, files inside a
+     * newly-created folder would sit unsynced until next cycle. No remote
+     * comparison needed: nothing can exist remotely under a folder that
+     * didn't exist a moment ago.
      */
     public void discoverNewLocalFolderContents(
             CloudStorageProvider provider, Path localFolder, String remoteFolderId, List<TransferTask> toUpload

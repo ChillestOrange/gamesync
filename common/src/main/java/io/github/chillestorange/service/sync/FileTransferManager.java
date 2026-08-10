@@ -16,16 +16,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 /**
- * Replaces transfer.py. Executes queued upload/download tasks, sequentially
- * for small changesets or via a thread pool for larger ones, with per-file
- * retries. Depends only on CloudStorageProvider, never a concrete provider.
+ * Executes queued upload/download tasks, sequentially for small changesets
+ * or via a thread pool for larger ones, with per-file retries. Depends only
+ * on CloudStorageProvider, never a concrete provider.
  * <p>
- * Two differences from the original: no thread-local provider sessions are
- * needed (java.net.http.HttpClient is thread-safe and shared, unlike
- * pydrive2/httplib2), and retry loops now distinguish a genuinely retryable
- * IOException from thread interruption — the original (and an earlier draft
- * of this port) caught everything generically, including InterruptedException,
- * which should stop the retry loop rather than be slept through and retried.
+ * java.net.http.HttpClient is thread-safe and shared across workers, so no
+ * per-thread provider sessions are needed. Retry loops distinguish a
+ * genuinely retryable IOException from thread interruption, which should
+ * stop the retry loop rather than be slept through and retried.
  */
 public final class FileTransferManager {
 
@@ -50,7 +48,8 @@ public final class FileTransferManager {
 
         int total = orderedUploads.size() + toDownload.size();
         if (total == 0) {
-            GameSyncLogger.info("World already in sync, nothing to transfer");
+            // Diff had folder tasks but every candidate file matched on fingerprint.
+            GameSyncLogger.debug("World already in sync, nothing to transfer");
             return;
         }
 
@@ -87,7 +86,7 @@ public final class FileTransferManager {
             try {
                 provider.uploadOrReplace(task.localPath(), task.remoteId(), task.parentFolderId(), task.name(),
                         Files.getLastModifiedTime(task.localPath()).toInstant());
-                GameSyncLogger.info("[UP] " + task.name());
+                GameSyncLogger.debug("[UP] " + task.name());
                 return;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -110,11 +109,11 @@ public final class FileTransferManager {
                 provider.downloadFile(task.remoteId(), task.localPath());
 
                 // Preserve the remote's modified timestamp locally so future syncs
-                // compare correctly — equivalent to the original's os.utime call.
+                // compare correctly.
                 long ts = task.remoteModifiedTime().toEpochMilli();
                 Files.setLastModifiedTime(task.localPath(), FileTime.fromMillis(ts));
 
-                GameSyncLogger.info("[DN] " + task.name());
+                GameSyncLogger.debug("[DN] " + task.name());
                 return;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
