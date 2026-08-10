@@ -12,8 +12,8 @@
   "gamesync.config.group.reliability": "Reliability",
   "gamesync.config.group.debug": "Debug",
 
-  "gamesync.config.option.target_world": "Target World",
-  "gamesync.config.option.target_world.desc": "World name to sync. Must match the save folder name exactly.",
+  "gamesync.config.option.target_worlds": "Target Worlds",
+  "gamesync.config.option.target_worlds.desc": "World names to sync. Must match the save folder name exactly. Add an entry for each world you want synced.",
 
   "gamesync.config.option.cloud_provider": "Cloud Provider",
   "gamesync.config.option.cloud_provider.desc": "Target cloud provider for sync operations. Currently the only supported value is Google Drive.",
