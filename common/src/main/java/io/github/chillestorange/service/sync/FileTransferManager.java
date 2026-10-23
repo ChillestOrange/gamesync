@@ -29,7 +29,8 @@ public final class FileTransferManager {
 
     private static final int THREAD_THRESHOLD = GameSyncConfig.threadThreshold();
     private static final int MAX_WORKERS = GameSyncConfig.maxWorkers();
-    private static final int MAX_RETRIES = GameSyncConfig.maxRetries();
+    // Config slider allows 0
+    private static final int MAX_RETRIES = Math.max(1, GameSyncConfig.maxRetries());
     private static final long RETRY_DELAY_MILLIS = GameSyncConfig.retryDelay();
 
     private final CloudStorageProvider provider;
@@ -38,7 +39,10 @@ public final class FileTransferManager {
         this.provider = provider;
     }
 
-    public void runTransfers(List<TransferTask> toUpload, List<TransferTask> toDownload) {
+    /**
+     * Throws if any transfer still failed after retries.
+     */
+    public void runTransfers(List<TransferTask> toUpload, List<TransferTask> toDownload) throws IOException {
         // Sort uploads so level.dat always goes last — a partial sync should
         // never leave the remote level.dat pointing at a world state that's
         // ahead of the region files backing it.
@@ -57,20 +61,22 @@ public final class FileTransferManager {
         GameSyncLogger.info(orderedUploads.size() + " to upload, " + toDownload.size() + " to download ("
                 + (useThreads ? "threaded, " + MAX_WORKERS + " workers" : "sequential") + ")");
 
+        int failed = 0;
         if (!useThreads) {
-            for (TransferTask task : orderedUploads) uploadOne(task);
-            for (TransferTask task : toDownload) downloadOne(task);
+            for (TransferTask task : orderedUploads) if (!uploadOne(task)) failed++;
+            for (TransferTask task : toDownload) if (!downloadOne(task)) failed++;
         } else {
             ExecutorService pool = Executors.newFixedThreadPool(MAX_WORKERS);
             try {
-                List<Future<?>> futures = new ArrayList<>();
+                List<Future<Boolean>> futures = new ArrayList<>();
                 for (TransferTask task : orderedUploads) futures.add(pool.submit(() -> uploadOne(task)));
                 for (TransferTask task : toDownload) futures.add(pool.submit(() -> downloadOne(task)));
-                for (Future<?> f : futures) {
+                for (Future<Boolean> f : futures) {
                     try {
-                        f.get();
-                    } catch (Exception ignored) {
+                        if (!f.get()) failed++;
+                    } catch (Exception e) {
                         // Already logged inside uploadOne/downloadOne's own handling.
+                        failed++;
                     }
                 }
             } finally {
@@ -78,32 +84,36 @@ public final class FileTransferManager {
             }
         }
 
+        if (failed > 0) {
+            throw new IOException(failed + " of " + total + " file transfers failed, see log for details");
+        }
         GameSyncLogger.info("All transfers completed");
     }
 
-    private void uploadOne(TransferTask task) {
+    private boolean uploadOne(TransferTask task) {
         for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
                 provider.uploadOrReplace(task.localPath(), task.remoteId(), task.parentFolderId(), task.name(),
                         Files.getLastModifiedTime(task.localPath()).toInstant());
                 GameSyncLogger.debug("[UP] " + task.name());
-                return;
+                return true;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 GameSyncLogger.warn("Upload interrupted: " + task.name());
-                return; // don't retry — the thread is being told to stop
+                return false; // don't retry — the thread is being told to stop
             } catch (IOException e) {
                 if (attempt < MAX_RETRIES - 1) {
                     GameSyncLogger.warn("Upload retry " + (attempt + 1) + "/" + MAX_RETRIES + ": " + task.name());
-                    if (sleep()) return;
+                    if (sleep()) return false;
                 } else {
                     GameSyncLogger.error("Upload failed after " + MAX_RETRIES + " attempts: " + task.name(), e);
                 }
             }
         }
+        return false;
     }
 
-    private void downloadOne(TransferTask task) {
+    private boolean downloadOne(TransferTask task) {
         for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
                 provider.downloadFile(task.remoteId(), task.localPath());
@@ -114,20 +124,21 @@ public final class FileTransferManager {
                 Files.setLastModifiedTime(task.localPath(), FileTime.fromMillis(ts));
 
                 GameSyncLogger.debug("[DN] " + task.name());
-                return;
+                return true;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 GameSyncLogger.warn("Download interrupted: " + task.name());
-                return;
+                return false;
             } catch (IOException e) {
                 if (attempt < MAX_RETRIES - 1) {
                     GameSyncLogger.warn("Download retry " + (attempt + 1) + "/" + MAX_RETRIES + ": " + task.name());
-                    if (sleep()) return;
+                    if (sleep()) return false;
                 } else {
                     GameSyncLogger.error("Download failed after " + MAX_RETRIES + " attempts: " + task.name(), e);
                 }
             }
         }
+        return false;
     }
 
     /** Returns true if interrupted while waiting, so the caller can stop retrying. */

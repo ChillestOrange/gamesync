@@ -57,6 +57,20 @@
   "gamesync.config.option.s3_secret_access_key": "Secret Access Key",
   "gamesync.config.option.s3_secret_access_key.desc": "Secret access key of the API token. This is confidential: anyone who has it can read and overwrite your bucket. Never share your config file.",
 
+  "gamesync.world.toggle": "☁",
+  "gamesync.world.toggle.on.tooltip": "Cloud sync: ON\nThis world syncs when you open and close it. Click to stop syncing it (the cloud copy is kept).",
+  "gamesync.world.toggle.off.tooltip": "Cloud sync: OFF\nClick to sync this world to the cloud. It uploads right away, then again whenever you open and close it.",
+  "gamesync.world.status.syncing": "Syncing%s",
+  "gamesync.world.status.never": "Not synced yet",
+  "gamesync.world.status.failed": "Sync failed",
+  "gamesync.world.status.failed.tooltip": "Last attempt failed at %s:\n%s",
+  "gamesync.world.status.synced": "Synced %s",
+  "gamesync.world.status.synced.tooltip": "Last synced at %s",
+  "gamesync.world.time.now": "just now",
+  "gamesync.world.time.minutes": "%sm ago",
+  "gamesync.world.time.hours": "%sh ago",
+  "gamesync.world.time.days": "%sd ago",
+
   "gamesync.config.option.thread_threshold": "Thread Threshold",
   "gamesync.config.option.thread_threshold.desc": "File count threshold above which sync execution switches from sequential to multithreaded.",
 

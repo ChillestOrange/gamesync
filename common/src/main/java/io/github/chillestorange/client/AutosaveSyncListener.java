@@ -6,6 +6,7 @@ import io.github.chillestorange.platform.PlatformServices;
 import io.github.chillestorange.service.GameSyncService;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.storage.LevelResource;
 
 import java.nio.file.Path;
 
@@ -40,16 +41,14 @@ public final class AutosaveSyncListener {
             return;
         }
 
-        String worldName = server.getWorldData().getLevelName();
+        // targetWorlds holds save folder names, getLevelName() is the display name.
+        Path worldPath = server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize();
+        String worldName = worldPath.getFileName().toString();
         if (!GameSyncConfig.isTargetWorld(worldName)) {
             return;
         }
 
-        Path worldPath = PlatformServices.PLATFORM.getGameDirectory()
-                .resolve("saves")
-                .resolve(worldName);
-
-        GameSyncLogger.info("Detected autosave tick for target world, starting sync: world=", worldName);
+        GameSyncLogger.info("Detected autosave tick for target world, starting sync: world={}", worldName);
 
         GameSyncService.runSyncCycle(worldPath, worldName);
     }

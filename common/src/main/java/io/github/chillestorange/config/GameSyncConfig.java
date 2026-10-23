@@ -126,6 +126,17 @@ public final class GameSyncConfig {
         return HANDLER.instance().targetWorlds.contains(levelId);
     }
 
+    /**
+     * Adds or removes a world from targetWorlds and saves.
+     */
+    public static void setTargetWorld(String levelId, boolean enabled) {
+        List<String> worlds = new ArrayList<>(HANDLER.instance().targetWorlds);
+        worlds.remove(levelId);
+        if (enabled) worlds.add(levelId);
+        HANDLER.instance().targetWorlds = worlds;
+        save();
+    }
+
     public static boolean autosaveSyncEnabled() {
         return HANDLER.instance().autosaveSyncEnabled;
     }

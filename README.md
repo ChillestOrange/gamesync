@@ -14,6 +14,7 @@ keeping your progress safe and accessible from any machine you play on.
 ## ✨ Features
 
 - **☁️ Google Drive or S3 Sync** - Push and pull your worlds directly to your own Google Drive, or any S3-compatible bucket (Cloudflare R2, AWS S3, Backblaze B2, MinIO)
+- **🗂️ Per-World Sync** - Turn sync on or off for each world and see when it last synced, right on the world selection screen
 - **🖥️ Client-Side Only** - No server-side installation required; works entirely on your local client
 - **🔄 Autosave Sync** - Optionally sync after every autosave cycle to keep your remote copy current
 - **⚡ Threaded Transfers** - Large worlds are transferred in parallel to keep sync times reasonable

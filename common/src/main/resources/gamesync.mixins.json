@@ -6,7 +6,8 @@
     "client.WorldSaveMixin"
   ],
   "client": [
-    "client.WorldJoinMixin"
+    "client.WorldJoinMixin",
+    "client.WorldListEntrySyncBadgeMixin"
   ],
   "injectors": {
     "defaultRequire": 1
