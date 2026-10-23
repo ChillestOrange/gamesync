@@ -1,6 +1,7 @@
 package io.github.chillestorange.service.cloud;
 
 import io.github.chillestorange.service.cloud.gdrive.GoogleDriveProvider;
+import io.github.chillestorange.service.cloud.s3.S3Provider;
 
 import java.net.http.HttpClient;
 import java.nio.file.Path;
@@ -24,17 +25,21 @@ public final class CloudStorageFactory {
      * in its own subpackage, and wiring a branch into create() below.
      */
     public enum ProviderType {
-        GOOGLE_DRIVE
+        GOOGLE_DRIVE,
+        S3
     }
 
     /**
      * Credential shapes vary by provider style — OAuth2 providers (Drive, Dropbox,
-     * OneDrive) need a client id/secret/token store, while something access-key
-     * based (e.g. S3) would need a completely different shape. Sealed so the
-     * compiler catches a future provider being handed the wrong credential shape.
+     * OneDrive) need a client id/secret/token store, while access-key based S3
+     * needs an endpoint, bucket and key pair instead. Sealed so the compiler
+     * catches a provider being handed the wrong credential shape.
      */
     public sealed interface Credentials {
         record OAuthCredentials(String clientId, String clientSecret, Path tokenStorePath) implements Credentials {}
+
+        record S3Credentials(String endpoint, String region, String bucket, String accessKeyId,
+                             String secretAccessKey) implements Credentials {}
     }
 
     public static CloudStorageProvider create(ProviderType type, Credentials credentials, HttpClient sharedHttpClient) {
@@ -48,6 +53,14 @@ public final class CloudStorageFactory {
                 GoogleDriveProvider.GoogleDriveAuthenticator auth = new GoogleDriveProvider.GoogleDriveAuthenticator(
                         clientId, clientSecret, tokenStorePath, sharedHttpClient);
                 yield new GoogleDriveProvider(auth, sharedHttpClient);
+            }
+            case S3 -> {
+                if (!(credentials instanceof Credentials.S3Credentials(
+                        String endpoint, String region, String bucket, String accessKeyId, String secretAccessKey
+                ))) {
+                    throw new IllegalArgumentException("S3 requires S3Credentials");
+                }
+                yield new S3Provider(endpoint, region, bucket, accessKeyId, secretAccessKey, sharedHttpClient);
             }
         };
     }

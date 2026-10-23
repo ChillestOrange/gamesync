@@ -15,11 +15,6 @@ public final class GameSyncClientFabric implements ClientModInitializer {
         GameSyncLogger.setDebugEnabled(GameSyncConfig.debugMode());
         FabricSyncHud.register();
         AutosaveSyncListener.register();
-        GameSyncService.initialize(
-                GameSyncConfig.providerType(),
-                GameSyncConfig.credentials(),
-                GameSyncConfig.remoteFolderId(),
-                GameSyncConfig.configDir()
-        );
+        GameSyncService.reloadFromConfig();
     }
 }

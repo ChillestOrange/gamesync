@@ -34,11 +34,6 @@ public class GameSyncClientNeoForge {
         GameSyncConfig.load();
         GameSyncLogger.setDebugEnabled(GameSyncConfig.debugMode());
         AutosaveSyncListener.register();
-        GameSyncService.initialize(
-                GameSyncConfig.providerType(),
-                GameSyncConfig.credentials(),
-                GameSyncConfig.remoteFolderId(),
-                GameSyncConfig.configDir()
-        );
+        GameSyncService.reloadFromConfig();
     }
 }
