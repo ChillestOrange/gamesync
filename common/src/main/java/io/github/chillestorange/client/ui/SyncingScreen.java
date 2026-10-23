@@ -7,7 +7,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
+import org.lwjgl.sdl.SDLVideo;
 
 public class SyncingScreen extends Screen {
 
@@ -84,12 +84,12 @@ public class SyncingScreen extends Screen {
         if (this.copyButton != null) {
             this.copyButton.visible = true;
         }
-        long windowHandle = this.minecraft.getWindow().handle();
-        this.wasFullscreen = this.minecraft.getWindow().isFullscreen();
+        // Don't minimize here, 26.3's renderer can't acquire a surface for a
+        // minimized window. Window has no fullscreen getter anymore, so read the option.
+        this.wasFullscreen = this.minecraft.options.fullscreen().get();
         if(this.wasFullscreen){
-            this.minecraft.getWindow().toggleFullScreen();
+            this.minecraft.getWindow().setFullscreen(false);
         }
-        GLFW.glfwIconifyWindow(windowHandle);
     }
 
 
@@ -102,11 +102,10 @@ public class SyncingScreen extends Screen {
         }
 
         long windowHandle = this.minecraft.getWindow().handle();
-        GLFW.glfwRestoreWindow(windowHandle);
-        GLFW.glfwFocusWindow(windowHandle);
+        SDLVideo.SDL_RaiseWindow(windowHandle);
 
         if(this.wasFullscreen){
-            this.minecraft.getWindow().toggleFullScreen();
+            this.minecraft.getWindow().setFullscreen(true);
             this.wasFullscreen = false;
         }
     }

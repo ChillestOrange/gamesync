@@ -49,10 +49,10 @@ public class WorldJoinMixin {
 
         ci.cancel();
 
-        Screen previousScreen = minecraft.screen;
+        Screen previousScreen = minecraft.gui.screen();
 
         // TODO: Add functionality to cancel sync and return to world selection menu.
-        minecraft.setScreen(new SyncingScreen());
+        minecraft.gui.setScreen(new SyncingScreen());
 
         Path worldPath = minecraft.getLevelSource().getLevelPath(levelId);
         GameSyncLogger.info("Starting join-triggered sync for world {}", levelId);
@@ -88,8 +88,8 @@ public class WorldJoinMixin {
         GameSyncLogger.error("Sync failed for world {}", levelId, error);
 
         minecraft.execute(() -> {
-            if (minecraft.screen instanceof SyncingScreen) {
-                minecraft.setScreen(previousScreen);
+            if (minecraft.gui.screen() instanceof SyncingScreen) {
+                minecraft.gui.setScreen(previousScreen);
             }
         });
     }
