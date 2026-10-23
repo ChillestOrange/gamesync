@@ -8,6 +8,7 @@ import io.github.chillestorange.GameSyncConstants;
 import io.github.chillestorange.platform.PlatformServices;
 import io.github.chillestorange.service.cloud.CloudStorageFactory.Credentials;
 import io.github.chillestorange.service.cloud.CloudStorageFactory.ProviderType;
+import io.github.chillestorange.service.cloud.s3.S3Provider;
 import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.NonNull;
 
@@ -43,7 +44,8 @@ public final class GameSyncConfig {
             "20 ticks = 1 second, so the default of 6000 equals 5 minutes.")
     public int autosaveIntervalTicks = 6000;
 
-    @SerialEntry(comment = "Target cloud provider for sync operations. Currently the only supported value is GOOGLE_DRIVE.")
+    @SerialEntry(comment = "Target cloud provider for sync operations: GOOGLE_DRIVE, or S3 for any S3-compatible " +
+            "storage (AWS S3, Cloudflare R2, Backblaze B2, MinIO).")
     public String cloudProvider = "GOOGLE_DRIVE";
 
     @SerialEntry(comment = "Root Google Drive folder ID, taken from the folder's URL: " +
@@ -59,6 +61,28 @@ public final class GameSyncConfig {
             "documentation, desktop-app client secrets are not confidential by design, but this " +
             "file should still not be shared or committed to version control.")
     public String clientSecret = "";
+
+    @SerialEntry(comment = "S3 API endpoint, e.g. https://<ACCOUNT_ID>.r2.cloudflarestorage.com for Cloudflare R2 " +
+            "or https://s3.<REGION>.amazonaws.com for AWS.")
+    public String s3Endpoint = "";
+
+    @SerialEntry(comment = "S3 region used for request signing. Cloudflare R2 uses 'auto'; for AWS use the " +
+            "bucket's region, e.g. eu-central-1.")
+    public String s3Region = "auto";
+
+    @SerialEntry(comment = "Name of the bucket worlds are stored in.")
+    public String s3Bucket = "";
+
+    @SerialEntry(comment = "Key prefix inside the bucket. Each synced world is stored under <prefix>/<world name>/. " +
+            "Leave empty to use the bucket root.")
+    public String s3Prefix = "gamesync";
+
+    @SerialEntry(comment = "Access key ID of an S3 API token with read and write access to the bucket.")
+    public String s3AccessKeyId = "";
+
+    @SerialEntry(comment = "Secret access key paired with the access key ID above. Unlike Google's desktop-app " +
+            "client secret, this IS confidential: anyone who has it can read and overwrite your bucket.")
+    public String s3SecretAccessKey = "";
 
     @SerialEntry(comment = "[ Advanced ] File count threshold above which sync execution switches from " +
             "sequential to multithreaded.")
@@ -143,12 +167,18 @@ public final class GameSyncConfig {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                     "Unknown cloudProvider in gamesync.json5: '" + raw +
-                            "'. Valid values: GOOGLE_DRIVE", e);
+                            "'. Valid values: GOOGLE_DRIVE, S3", e);
         }
     }
 
-    public static String remoteFolderId() {
-        return HANDLER.instance().remoteFolderId;
+    /**
+     * Drive folder id for Drive, normalized key prefix for S3.
+     */
+    public static String remoteRootId() {
+        return switch (providerType()) {
+            case GOOGLE_DRIVE -> HANDLER.instance().remoteFolderId;
+            case S3 -> S3Provider.normalizePrefix(HANDLER.instance().s3Prefix);
+        };
     }
 
     /**
@@ -157,11 +187,17 @@ public final class GameSyncConfig {
      * own config field — the user never needs to know where tokens live.
      */
     public static Credentials credentials() {
-        return new Credentials.OAuthCredentials(
-                HANDLER.instance().clientId,
-                HANDLER.instance().clientSecret,
-                configDir().resolve("drive_tokens.json")
-        );
+        GameSyncConfig c = HANDLER.instance();
+        return switch (providerType()) {
+            case GOOGLE_DRIVE -> new Credentials.OAuthCredentials(
+                    c.clientId,
+                    c.clientSecret,
+                    configDir().resolve("drive_tokens.json")
+            );
+            case S3 -> new Credentials.S3Credentials(
+                    c.s3Endpoint, c.s3Region, c.s3Bucket, c.s3AccessKeyId, c.s3SecretAccessKey
+            );
+        };
     }
 
     /**

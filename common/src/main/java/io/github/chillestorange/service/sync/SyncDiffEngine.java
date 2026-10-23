@@ -134,8 +134,13 @@ public final class SyncDiffEngine {
                         GameSyncLogger.debug("Fingerprint match, skipping upload: {}", localFile);
                     }
                 } else if (direction == SyncDirection.DOWNLOAD && remoteModified.isAfter(localModified)) {
-                    GameSyncLogger.debug("Queueing download: {} (local={} remote={})", relKey, localModified, remoteModified);
-                    toDownload.add(new TransferTask(localFile, serverItem.id(), folderId, name, serverItem.modifiedTime()));
+                    // Needed for S3, where remote time is upload time.
+                    if (contentLikelyChanged(localFile, relKey, serverItem, hashCache)) {
+                        GameSyncLogger.debug("Queueing download: {} (local={} remote={})", relKey, localModified, remoteModified);
+                        toDownload.add(new TransferTask(localFile, serverItem.id(), folderId, name, serverItem.modifiedTime()));
+                    } else {
+                        GameSyncLogger.debug("Fingerprint match, skipping download: {}", localFile);
+                    }
                 }
 
             } else if (existsLocally) {

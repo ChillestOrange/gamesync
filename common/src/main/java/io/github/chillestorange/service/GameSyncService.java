@@ -1,5 +1,6 @@
 package io.github.chillestorange.service;
 
+import io.github.chillestorange.config.GameSyncConfig;
 import io.github.chillestorange.logging.GameSyncLogger;
 import io.github.chillestorange.service.cloud.CloudItem;
 import io.github.chillestorange.service.cloud.CloudStorageFactory;
@@ -59,6 +60,8 @@ public final class GameSyncService {
     // resolveWorldFolderId.
     private static volatile String appRootFolderId;
     private static volatile Path configDir;
+    // Set when the config can't build a provider, reported as the sync failure.
+    private static volatile Exception configError;
 
     private GameSyncService() {
     }
@@ -68,13 +71,27 @@ public final class GameSyncService {
     }
 
     /**
-     * Call once at mod startup (e.g. from GameSyncClient's initializer), not
-     * on every sync cycle — the provider, authenticator, and hash cache stay
-     * live for the JVM's lifetime, so rebuilding them per cycle would just
-     * mean re-reading token/hash-cache JSON off disk and spinning up
-     * duplicate HttpClient instances for no reason.
+     * (Re)builds the provider from GameSyncConfig. Call at startup and when the
+     * config is saved. Runs on SYNC_EXECUTOR so it never swaps the provider in
+     * the middle of a running cycle.
      */
-    public static void initialize(
+    public static void reloadFromConfig() {
+        SYNC_EXECUTOR.execute(() -> {
+            try {
+                ProviderType providerType = GameSyncConfig.providerType();
+                initialize(providerType, GameSyncConfig.credentials(), GameSyncConfig.remoteRootId(),
+                        GameSyncConfig.configDir());
+                configError = null;
+                GameSyncLogger.info("Using cloud provider {}", providerType);
+            } catch (RuntimeException e) {
+                provider = null;
+                configError = e;
+                GameSyncLogger.error("GameSync is not configured correctly, sync is disabled until fixed", e);
+            }
+        });
+    }
+
+    private static void initialize(
             ProviderType providerType, Credentials credentials, String appRootFolderId, Path configDir
     ) {
         HttpClient sharedHttpClient = HttpClient.newHttpClient();
@@ -82,6 +99,7 @@ public final class GameSyncService {
         hashCache = new HashCache(configDir.resolve("sync_hash_cache.json"), provider::computeLocalFingerprint);
         GameSyncService.appRootFolderId = appRootFolderId;
         GameSyncService.configDir = configDir;
+        worldFolderIdCache.clear();
     }
 
     /**
@@ -98,9 +116,6 @@ public final class GameSyncService {
     public static CompletableFuture<Void> runSyncCycle(
             Path worldPath, String worldName, Runnable onSuccess, Consumer<Throwable> onFailure) {
 
-        if (provider == null) {
-            throw new IllegalStateException("GameSyncService.initialize(...) must be called before runSyncCycle(...)");
-        }
         if (!SYNC_RUNNING.compareAndSet(false, true)) {
             // Routine when an autosave-triggered sync overlaps a world-join-triggered
             // one; not worth surfacing at INFO on every occurrence.
@@ -110,6 +125,11 @@ public final class GameSyncService {
 
         return CompletableFuture.runAsync(() -> {
             try {
+                if (provider == null) {
+                    throw new IllegalStateException("GameSync is not configured: "
+                            + (configError != null ? configError.getMessage() : "reloadFromConfig() was never called"),
+                            configError);
+                }
                 doSync(worldPath, worldName);
                 onSuccess.run();
             } catch (InterruptedException e) {
