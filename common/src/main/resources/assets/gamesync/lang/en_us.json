@@ -3,6 +3,7 @@
 
   "gamesync.config.category.general": "General",
   "gamesync.config.category.drive": "Google Drive",
+  "gamesync.config.category.s3": "S3 / R2",
   "gamesync.config.category.advanced": "Advanced",
 
   "gamesync.config.group.sync_target": "Sync Target",
@@ -16,7 +17,7 @@
   "gamesync.config.option.target_worlds.desc": "World names to sync. Must match the save folder name exactly. Add an entry for each world you want synced.",
 
   "gamesync.config.option.cloud_provider": "Cloud Provider",
-  "gamesync.config.option.cloud_provider.desc": "Target cloud provider for sync operations. Currently the only supported value is Google Drive.",
+  "gamesync.config.option.cloud_provider.desc": "Target cloud provider for sync operations. Choose S3 for any S3-compatible storage, such as Cloudflare R2, AWS S3, Backblaze B2 or MinIO, and fill in the S3 / R2 tab.",
 
   "gamesync.config.option.autosave_enabled": "Sync on Autosave",
   "gamesync.config.option.autosave_enabled.desc": "Triggers an additional sync at given intervals, independent of manual or world-unload syncs.",
@@ -35,6 +36,26 @@
 
   "gamesync.config.option.client_secret": "OAuth Client Secret",
   "gamesync.config.option.client_secret.desc": "OAuth 2.0 Client Secret paired with the Client ID above. Per Google's own documentation, desktop-app secrets are not confidential by design, but this file should still not be shared publicly.",
+
+  "gamesync.config.group.s3_connection.desc": "Create an API token with read and write access to your bucket (Cloudflare R2: R2 > Manage API tokens), then enter its details below.",
+
+  "gamesync.config.option.s3_endpoint": "Endpoint",
+  "gamesync.config.option.s3_endpoint.desc": "S3 API endpoint. Cloudflare R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com. AWS: https://s3.<REGION>.amazonaws.com",
+
+  "gamesync.config.option.s3_region": "Region",
+  "gamesync.config.option.s3_region.desc": "Region used for request signing. Cloudflare R2 uses 'auto'; for AWS use the bucket's region, e.g. eu-central-1.",
+
+  "gamesync.config.option.s3_bucket": "Bucket",
+  "gamesync.config.option.s3_bucket.desc": "Name of the bucket worlds are stored in.",
+
+  "gamesync.config.option.s3_prefix": "Key Prefix",
+  "gamesync.config.option.s3_prefix.desc": "Folder inside the bucket. Each synced world is stored under <prefix>/<world name>/. Leave empty to use the bucket root.",
+
+  "gamesync.config.option.s3_access_key_id": "Access Key ID",
+  "gamesync.config.option.s3_access_key_id.desc": "Access key ID of the API token.",
+
+  "gamesync.config.option.s3_secret_access_key": "Secret Access Key",
+  "gamesync.config.option.s3_secret_access_key.desc": "Secret access key of the API token. This is confidential: anyone who has it can read and overwrite your bucket. Never share your config file.",
 
   "gamesync.config.option.thread_threshold": "Thread Threshold",
   "gamesync.config.option.thread_threshold.desc": "File count threshold above which sync execution switches from sequential to multithreaded.",

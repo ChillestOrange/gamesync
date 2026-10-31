@@ -6,11 +6,14 @@ import dev.isxander.yacl3.api.controller.EnumControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerSliderControllerBuilder;
 import dev.isxander.yacl3.api.controller.StringControllerBuilder;
 import io.github.chillestorange.logging.GameSyncLogger;
+import io.github.chillestorange.service.GameSyncService;
 import io.github.chillestorange.service.cloud.CloudStorageFactory.ProviderType;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class GameSyncConfigScreen {
 
@@ -135,6 +138,26 @@ public class GameSyncConfigScreen {
                 .group(driveConnectionGroup)
                 .build();
 
+        // --- S3: endpoint, bucket and credentials ---
+
+        OptionGroup s3ConnectionGroup = OptionGroup.createBuilder()
+                .name(Component.translatable("gamesync.config.group.connection"))
+                .description(OptionDescription.of(Component.translatable(
+                        "gamesync.config.group.s3_connection.desc")))
+                .option(stringOption("s3_endpoint", () -> instance.s3Endpoint, v -> instance.s3Endpoint = v))
+                .option(stringOption("s3_region", () -> instance.s3Region, v -> instance.s3Region = v))
+                .option(stringOption("s3_bucket", () -> instance.s3Bucket, v -> instance.s3Bucket = v))
+                .option(stringOption("s3_prefix", () -> instance.s3Prefix, v -> instance.s3Prefix = v))
+                .option(stringOption("s3_access_key_id", () -> instance.s3AccessKeyId, v -> instance.s3AccessKeyId = v))
+                .option(stringOption("s3_secret_access_key", () -> instance.s3SecretAccessKey,
+                        v -> instance.s3SecretAccessKey = v))
+                .build();
+
+        ConfigCategory s3Category = ConfigCategory.createBuilder()
+                .name(Component.translatable("gamesync.config.category.s3"))
+                .group(s3ConnectionGroup)
+                .build();
+
         // --- Advanced: performance and reliability tuning ---
 
         Option<Integer> threadThresholdOption = Option.<Integer>createBuilder()
@@ -208,9 +231,22 @@ public class GameSyncConfigScreen {
                 .title(Component.translatable("gamesync.config.title"))
                 .category(generalCategory)
                 .category(driveCategory)
+                .category(s3Category)
                 .category(advancedCategory)
-                .save(GameSyncConfig::save)
+                .save(() -> {
+                    GameSyncConfig.save();
+                    GameSyncService.reloadFromConfig();
+                })
                 .build()
                 .generateScreen(parent);
+    }
+
+    private static Option<String> stringOption(String key, Supplier<String> getter, Consumer<String> setter) {
+        return Option.<String>createBuilder()
+                .name(Component.translatable("gamesync.config.option." + key))
+                .description(OptionDescription.of(Component.translatable("gamesync.config.option." + key + ".desc")))
+                .binding("", getter, setter)
+                .controller(StringControllerBuilder::create)
+                .build();
     }
 }

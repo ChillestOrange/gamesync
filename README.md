@@ -13,7 +13,7 @@ keeping your progress safe and accessible from any machine you play on.
 
 ## ✨ Features
 
-- **☁️ Google Drive Sync** - Push and pull your worlds directly to your own Google Drive storage
+- **☁️ Google Drive or S3 Sync** - Push and pull your worlds directly to your own Google Drive, or any S3-compatible bucket (Cloudflare R2, AWS S3, Backblaze B2, MinIO)
 - **🖥️ Client-Side Only** - No server-side installation required; works entirely on your local client
 - **🔄 Autosave Sync** - Optionally sync after every autosave cycle to keep your remote copy current
 - **⚡ Threaded Transfers** - Large worlds are transferred in parallel to keep sync times reasonable
@@ -66,6 +66,24 @@ Game Sync uses your own Google OAuth credentials to authenticate with Drive. You
 
 > [!TIP]
 > Keep your `clientId`, `clientSecret`, and OAuth token private. Don't share your config file with others.
+
+### S3 / Cloudflare R2
+
+Any S3-compatible storage works. Requests go straight from your client to the bucket; nothing is routed through any third-party server.
+
+1. Create a bucket. For Cloudflare R2: *R2 Object Storage > Create bucket*
+2. Create an API token with read and write access to that bucket. For R2: *R2 Object Storage > Manage API tokens > Create API token*, permission **Object Read & Write**, scoped to the bucket
+3. In `gamesync.jsonc`, set `cloudProvider` to `S3` and fill in:
+   - `s3Endpoint`: for R2, `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`; for AWS, `https://s3.<REGION>.amazonaws.com`
+   - `s3Region`: `auto` for R2; the bucket's region for AWS
+   - `s3Bucket`: the bucket name
+   - `s3AccessKeyId` and `s3SecretAccessKey`: from the API token
+   - `s3Prefix` *(optional)*: folder inside the bucket, `gamesync` by default. Each world is stored under `<prefix>/<world name>/`
+
+All of these can also be set in-game on the **S3 / R2** config tab. Changes apply as soon as you save.
+
+> [!WARNING]
+> Your secret access key gives full read and write access to the bucket. Don't share your config file with others.
 
 ## 🛠️ Building from Source
 
