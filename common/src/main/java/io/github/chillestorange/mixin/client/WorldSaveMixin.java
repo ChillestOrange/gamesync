@@ -45,7 +45,7 @@ public class WorldSaveMixin {
         GameSyncLogger.info("Target world closed, starting upload sync for world {}", levelId);
 
         Minecraft minecraft = Minecraft.getInstance();
-        minecraft.execute(() -> minecraft.setScreen(new SyncingScreen()));
+        minecraft.execute(() -> minecraft.gui.setScreen(new SyncingScreen()));
 
         GameSyncService.runSyncCycle(
                 worldPath,
@@ -64,8 +64,8 @@ public class WorldSaveMixin {
     @Unique
     private void gamesync$returnToTitleIfStillSyncing(Minecraft minecraft) {
         minecraft.execute(() -> {
-            if (minecraft.screen instanceof SyncingScreen) {
-                minecraft.setScreen(new TitleScreen());
+            if (minecraft.gui.screen() instanceof SyncingScreen) {
+                minecraft.gui.setScreen(new TitleScreen());
             }
         });
     }

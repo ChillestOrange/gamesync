@@ -26,26 +26,26 @@ keeping your progress safe and accessible from any machine you play on.
 
 | Dependency | Version |
 |---|---|
-| Minecraft | `26.1.2` |
-| Fabric Loader | `0.19.3` |
-| [Fabric API](https://modrinth.com/mod/fabric-api) | latest for `26.1.2` |
-| [YACL](https://modrinth.com/mod/yacl) | latest for `26.1.2` |
-| [Mod Menu](https://modrinth.com/mod/modmenu) | latest for `26.1.2` *(optional, for in-game config UI)* |
+| Minecraft | `26.3` |
+| Fabric Loader | `0.19.5` |
+| [Fabric API](https://modrinth.com/mod/fabric-api) | latest for `26.3` |
+| [YACL](https://modrinth.com/mod/yacl) | latest for `26.3` |
+| [Mod Menu](https://modrinth.com/mod/modmenu) | latest for `26.3` *(optional, for in-game config UI)* |
 
 ### NeoForge
 
 | Dependency | Version |
 |---|---|
-| Minecraft | `26.1.2` |
-| NeoForge | `26.1.2.76` |
-| [YACL](https://modrinth.com/mod/yacl) | latest for `26.1.2` |
+| Minecraft | `26.3` |
+| NeoForge | `26.3.0.95` |
+| [YACL](https://modrinth.com/mod/yacl) | latest for `26.3` |
 
 ## 📥 Installation
 
 > [!TIP]
 > If you're using the CurseForge or Modrinth app, steps 1 and 2 are handled automatically. Search for **Game Sync**, click Install, and your mod manager will resolve the correct loader and all dependencies for your platform.
 
-1. Download and install the correct mod loader for your platform: [Fabric Loader](https://fabricmc.net/use/installer/) `0.19.3` or [NeoForge](https://neoforged.net/) `26.1.2.76`
+1. Download and install the correct mod loader for your platform: [Fabric Loader](https://fabricmc.net/use/installer/) `0.19.5` or [NeoForge](https://neoforged.net/) `26.3.0.95`
 2. Download all required dependencies for your platform as listed in the [Requirements](#-requirements) section and place them in `.minecraft/mods/`
 3. Download the latest Game Sync release for your platform from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/game-sync/files) or [Modrinth](https://modrinth.com/mod/game-sync/versions) and place the `.jar` in `.minecraft/mods/`
 4. Launch Minecraft using the appropriate loader profile. Game Sync will generate its config file at `.minecraft/config/gamesync.jsonc` on first run

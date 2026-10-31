@@ -26,6 +26,6 @@ public final class ClientToastHandler {
 
         Minecraft minecraft = Minecraft.getInstance();
 
-        minecraft.execute(() -> minecraft.getToastManager().addToast(new SyncProgressToast(TITLE, Component.literal(message))));
+        minecraft.execute(() -> minecraft.gui.toastManager().addToast(new SyncProgressToast(TITLE, Component.literal(message))));
     }
 }
