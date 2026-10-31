@@ -29,6 +29,14 @@ public final class SyncDiffEngine {
     // Defensive fallback in case a file is still mid-write when scanned.
     private static final long SKIP_IF_MODIFIED_WITHIN_MILLIS = 3000;
 
+    // Only an open world can have files mid-write. On close every file was
+    // just saved, so the guard would skip all of them.
+    private final boolean worldOpen;
+
+    public SyncDiffEngine(boolean worldOpen) {
+        this.worldOpen = worldOpen;
+    }
+
     public Result buildChangeset(
             Path localRoot,
             String rootFolderId,
@@ -100,7 +108,7 @@ public final class SyncDiffEngine {
                 continue;
             }
 
-            if (existsLocally) {
+            if (existsLocally && worldOpen) {
                 long ageMillis = System.currentTimeMillis() - Files.getLastModifiedTime(localFile).toMillis();
                 if (ageMillis < SKIP_IF_MODIFIED_WITHIN_MILLIS) {
                     GameSyncLogger.debug("Skipping mid-write file: {} (age {}ms)", localFile, ageMillis);
@@ -134,8 +142,13 @@ public final class SyncDiffEngine {
                         GameSyncLogger.debug("Fingerprint match, skipping upload: {}", localFile);
                     }
                 } else if (direction == SyncDirection.DOWNLOAD && remoteModified.isAfter(localModified)) {
-                    GameSyncLogger.debug("Queueing download: {} (local={} remote={})", relKey, localModified, remoteModified);
-                    toDownload.add(new TransferTask(localFile, serverItem.id(), folderId, name, serverItem.modifiedTime()));
+                    // Needed for S3, where remote time is upload time.
+                    if (contentLikelyChanged(localFile, relKey, serverItem, hashCache)) {
+                        GameSyncLogger.debug("Queueing download: {} (local={} remote={})", relKey, localModified, remoteModified);
+                        toDownload.add(new TransferTask(localFile, serverItem.id(), folderId, name, serverItem.modifiedTime()));
+                    } else {
+                        GameSyncLogger.debug("Fingerprint match, skipping download: {}", localFile);
+                    }
                 }
 
             } else if (existsLocally) {
@@ -180,7 +193,7 @@ public final class SyncDiffEngine {
                 discoverNewLocalFolderContents(provider, child, newSubfolderId, toUpload);
             } else {
                 long ageMillis = System.currentTimeMillis() - Files.getLastModifiedTime(child).toMillis();
-                if (ageMillis < SKIP_IF_MODIFIED_WITHIN_MILLIS) {
+                if (worldOpen && ageMillis < SKIP_IF_MODIFIED_WITHIN_MILLIS) {
                     continue; // mid-write guard, same as the main walk
                 }
                 toUpload.add(new TransferTask(child, null, remoteFolderId, name, null));

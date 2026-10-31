@@ -1,5 +1,6 @@
 package io.github.chillestorange.service;
 
+import io.github.chillestorange.config.GameSyncConfig;
 import io.github.chillestorange.logging.GameSyncLogger;
 import io.github.chillestorange.service.cloud.CloudItem;
 import io.github.chillestorange.service.cloud.CloudStorageFactory;
@@ -34,10 +35,10 @@ import java.util.function.Consumer;
  */
 public final class GameSyncService {
 
-    // A flag is enough to stop two sync cycles overlapping (e.g. an
-    // autosave-triggered sync racing a world-join-triggered one) since
-    // everything runs in one JVM.
+    // Cycles run one at a time on SYNC_EXECUTOR, this only tracks if one is running.
     private static final AtomicBoolean SYNC_RUNNING = new AtomicBoolean(false);
+    // Save folder name of the world being synced, or null.
+    private static volatile String syncingWorld;
     private static final ExecutorService SYNC_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "gamesync-cycle");
         t.setDaemon(true);
@@ -59,6 +60,8 @@ public final class GameSyncService {
     // resolveWorldFolderId.
     private static volatile String appRootFolderId;
     private static volatile Path configDir;
+    // Set when the config can't build a provider, reported as the sync failure.
+    private static volatile Exception configError;
 
     private GameSyncService() {
     }
@@ -67,14 +70,32 @@ public final class GameSyncService {
         return SYNC_RUNNING.get();
     }
 
+    public static boolean isSyncing(String worldName) {
+        return worldName.equals(syncingWorld);
+    }
+
     /**
-     * Call once at mod startup (e.g. from GameSyncClient's initializer), not
-     * on every sync cycle — the provider, authenticator, and hash cache stay
-     * live for the JVM's lifetime, so rebuilding them per cycle would just
-     * mean re-reading token/hash-cache JSON off disk and spinning up
-     * duplicate HttpClient instances for no reason.
+     * (Re)builds the provider from GameSyncConfig. Call at startup and when the
+     * config is saved. Runs on SYNC_EXECUTOR so it never swaps the provider in
+     * the middle of a running cycle.
      */
-    public static void initialize(
+    public static void reloadFromConfig() {
+        SYNC_EXECUTOR.execute(() -> {
+            try {
+                ProviderType providerType = GameSyncConfig.providerType();
+                initialize(providerType, GameSyncConfig.credentials(), GameSyncConfig.remoteRootId(),
+                        GameSyncConfig.configDir());
+                configError = null;
+                GameSyncLogger.info("Using cloud provider {}", providerType);
+            } catch (RuntimeException e) {
+                provider = null;
+                configError = e;
+                GameSyncLogger.error("GameSync is not configured correctly, sync is disabled until fixed", e);
+            }
+        });
+    }
+
+    private static void initialize(
             ProviderType providerType, Credentials credentials, String appRootFolderId, Path configDir
     ) {
         HttpClient sharedHttpClient = HttpClient.newHttpClient();
@@ -82,50 +103,68 @@ public final class GameSyncService {
         hashCache = new HashCache(configDir.resolve("sync_hash_cache.json"), provider::computeLocalFingerprint);
         GameSyncService.appRootFolderId = appRootFolderId;
         GameSyncService.configDir = configDir;
+        worldFolderIdCache.clear();
+    }
+
+    /**
+     * Autosave trigger. Skipped if a cycle is already running, the next
+     * interval will catch up.
+     */
+    public static CompletableFuture<Void> runSyncCycle(Path worldPath, String worldName) {
+        if (SYNC_RUNNING.get()) {
+            GameSyncLogger.debug("Sync already running, skipping this trigger");
+            return CompletableFuture.completedFuture(null);
+        }
+        return runSyncCycle(worldPath, worldName, true, () -> {
+        }, _ -> {
+        });
     }
 
     /**
      * Runs one full sync cycle for the given world. Hops onto a background
      * thread internally and never blocks the calling thread — safe to call
      * directly from a mixin callback on the client thread.
+     * <p>
+     * Queues behind a running cycle instead of skipping, since the caller is
+     * waiting for one of the callbacks.
      */
-    public static CompletableFuture<Void> runSyncCycle(Path worldPath, String worldName) {
-        return runSyncCycle(worldPath, worldName, () -> {
-        }, _ -> {
-        });
-    }
-
     public static CompletableFuture<Void> runSyncCycle(
             Path worldPath, String worldName, Runnable onSuccess, Consumer<Throwable> onFailure) {
+        return runSyncCycle(worldPath, worldName, false, onSuccess, onFailure);
+    }
 
-        if (provider == null) {
-            throw new IllegalStateException("GameSyncService.initialize(...) must be called before runSyncCycle(...)");
-        }
-        if (!SYNC_RUNNING.compareAndSet(false, true)) {
-            // Routine when an autosave-triggered sync overlaps a world-join-triggered
-            // one; not worth surfacing at INFO on every occurrence.
-            GameSyncLogger.debug("Sync already running, skipping this trigger");
-            return CompletableFuture.completedFuture(null);
-        }
-
+    private static CompletableFuture<Void> runSyncCycle(Path worldPath, String worldName, boolean worldOpen,
+                                                        Runnable onSuccess, Consumer<Throwable> onFailure) {
         return CompletableFuture.runAsync(() -> {
+            SYNC_RUNNING.set(true);
+            syncingWorld = worldName;
             try {
-                doSync(worldPath, worldName);
+                if (provider == null) {
+                    throw new IllegalStateException("GameSync is not configured: "
+                            + (configError != null ? configError.getMessage() : "reloadFromConfig() was never called"),
+                            configError);
+                }
+                doSync(worldPath, worldName, worldOpen);
+                SyncStatusStore.recordSuccess(worldName);
                 onSuccess.run();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 GameSyncLogger.error("Sync cycle interrupted", e);
+                SyncStatusStore.recordFailure(worldName, e);
                 onFailure.accept(e);
             } catch (Exception e) {
                 GameSyncLogger.error("Sync cycle failed", e);
+                SyncStatusStore.recordFailure(worldName, e);
                 onFailure.accept(e);
             } finally {
+                syncingWorld = null;
                 SYNC_RUNNING.set(false);
             }
         }, SYNC_EXECUTOR);
     }
 
-    private static void doSync(Path worldPath, String worldName) throws IOException, InterruptedException {
+    private static void doSync(Path worldPath, String worldName, boolean worldOpen)
+            throws IOException, InterruptedException {
         String worldFolderId = resolveWorldFolderId(worldName);
 
         // Check for level.dat specifically, not just the directory. On a world-join
@@ -175,7 +214,7 @@ public final class GameSyncService {
         Map<String, List<CloudItem>> tree = provider.fetchTree(worldFolderId);
         GameSyncLogger.info("Remote tree fetched: {} folders mapped", tree.size());
 
-        SyncDiffEngine diffEngine = new SyncDiffEngine();
+        SyncDiffEngine diffEngine = new SyncDiffEngine(worldOpen);
         SyncDiffEngine.Result diff = diffEngine.buildChangeset(
                 worldPath, worldFolderId, tree, hashCache, direction);
 
